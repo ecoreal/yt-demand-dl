@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+.venv/
+venv/
+
+# Downloaded datasets and generated media are local artifacts.
+data/
+downloads/
+*.part
+*.ytdl
+
+# Local manifests or probes created during download experiments.
+*.log
+tmp/

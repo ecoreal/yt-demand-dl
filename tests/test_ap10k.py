@@ -1,0 +1,44 @@
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from yt_demand_dl.ap10k import AP10K_CATEGORIES, load_categories, make_ap10k_jobs
+
+
+class Ap10kTests(unittest.TestCase):
+    def test_bundled_categories_have_official_54_count(self):
+        self.assertEqual(len(AP10K_CATEGORIES), 54)
+        self.assertEqual(len(set(name.lower() for name in AP10K_CATEGORIES)), 54)
+
+    def test_default_ap10k_jobs_match_requested_53_categories(self):
+        jobs = make_ap10k_jobs()
+        self.assertEqual(len(jobs), 53)
+        self.assertEqual(jobs[0].resolved_source(), "ytsearch1:antelope animal video")
+        self.assertEqual(jobs[-1].label, "raccoon")
+
+    def test_ap10k_jobs_can_use_all_54_categories(self):
+        jobs = make_ap10k_jobs(category_limit=None, videos_per_category=2)
+        self.assertEqual(len(jobs), 54)
+        self.assertEqual(jobs[-1].resolved_source(), "ytsearch2:killer whale animal video")
+
+    def test_load_categories_from_coco_annotations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "annotations.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "categories": [
+                            {"id": 1, "name": "antelope"},
+                            {"id": 2, "name": "antelope"},
+                            {"id": 3, "name": "wolf"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(load_categories(path), ("antelope", "wolf"))
+
+
+if __name__ == "__main__":
+    unittest.main()
