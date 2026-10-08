@@ -9,6 +9,18 @@ from yt_demand_dl import cli
 
 
 class CliTests(unittest.TestCase):
+    def test_rejects_invalid_numeric_download_options(self):
+        for args in (
+            ["download", "query", "--query", "--limit", "0"],
+            ["ap10k", "--videos-per-category", "0"],
+            ["download", "query", "--max-duration", "-1"],
+            ["download", "query", "--socket-timeout", "0"],
+        ):
+            with self.subTest(args=args):
+                with self.assertRaises(SystemExit) as raised:
+                    cli.main(args)
+                self.assertEqual(2, raised.exception.code)
+
     def test_list_ap10k_limit(self):
         out = io.StringIO()
         with redirect_stdout(out):

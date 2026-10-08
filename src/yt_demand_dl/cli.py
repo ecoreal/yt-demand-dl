@@ -30,6 +30,27 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
 
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return parsed
+
+
+def _non_negative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be non-negative")
+    return parsed
+
+
+def _positive_float(value: str) -> float:
+    parsed = float(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be greater than 0")
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="yt-demand-dl",
@@ -38,7 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(required=True)
 
     list_parser = subparsers.add_parser("list-ap10k", help="List bundled AP-10K categories.")
-    list_parser.add_argument("--limit", type=int, default=None)
+    list_parser.add_argument("--limit", type=_positive_int, default=None)
     list_parser.set_defaults(func=_list_ap10k)
 
     download_parser = subparsers.add_parser("download", help="Download URLs or search queries.")
@@ -46,7 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
     download_parser.add_argument("sources", nargs="+")
     download_parser.add_argument("--label", default=None)
     download_parser.add_argument("--query", action="store_true", help="Treat sources as YouTube searches.")
-    download_parser.add_argument("--limit", type=int, default=1, help="Search results per query.")
+    download_parser.add_argument("--limit", type=_positive_int, default=1, help="Search results per query.")
     download_parser.set_defaults(func=_download_sources)
 
     manifest_parser = subparsers.add_parser(
@@ -63,8 +84,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_download_options(ap10k_parser)
     ap10k_parser.add_argument("--categories-file", type=Path)
-    ap10k_parser.add_argument("--category-limit", type=int, default=AP10K_DEFAULT_COUNT)
-    ap10k_parser.add_argument("--videos-per-category", type=int, default=1)
+    ap10k_parser.add_argument("--category-limit", type=_positive_int, default=AP10K_DEFAULT_COUNT)
+    ap10k_parser.add_argument("--videos-per-category", type=_positive_int, default=1)
     ap10k_parser.add_argument(
         "--query-template",
         default="{category} animal video",
@@ -94,8 +115,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     resume_parser.add_argument("root", type=Path)
     _add_download_options(resume_parser, output_default=None)
-    resume_parser.add_argument("--category-limit", type=int, default=AP10K_DEFAULT_COUNT)
-    resume_parser.add_argument("--videos-per-category", type=int, default=1)
+    resume_parser.add_argument("--category-limit", type=_positive_int, default=AP10K_DEFAULT_COUNT)
+    resume_parser.add_argument("--videos-per-category", type=_positive_int, default=1)
     resume_parser.add_argument(
         "--query-template",
         default="{category} animal facts for kids",
@@ -108,7 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Verify that each AP-10K category directory contains a media file.",
     )
     verify_parser.add_argument("root", type=Path)
-    verify_parser.add_argument("--category-limit", type=int, default=AP10K_DEFAULT_COUNT)
+    verify_parser.add_argument("--category-limit", type=_positive_int, default=AP10K_DEFAULT_COUNT)
     verify_parser.add_argument("--archive", type=Path)
     verify_parser.add_argument(
         "--min-height",
@@ -144,13 +165,13 @@ def _add_download_options(
         help="yt-dlp output template, placed under a label directory by default.",
     )
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--max-duration", type=int)
-    parser.add_argument("--min-duration", type=int)
+    parser.add_argument("--max-duration", type=_positive_int)
+    parser.add_argument("--min-duration", type=_non_negative_int)
     parser.add_argument("--max-filesize")
     parser.add_argument("--download-archive", type=Path)
     parser.add_argument(
         "--socket-timeout",
-        type=float,
+        type=_positive_float,
         help="Network socket timeout passed through to yt-dlp.",
     )
     parser.add_argument(
