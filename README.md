@@ -177,3 +177,6 @@ PYTHONPATH=src python -m yt_demand_dl resume-ap10k data/ap10k-youtube \
   --download-archive data/ap10k-youtube/archive.txt \
   --proxy http://127.0.0.1:2266
 ```
+
+
+CI runs the offline unittest suite and a network-free AP-10K planning smoke test across supported Python versions.
