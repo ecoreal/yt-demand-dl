@@ -43,6 +43,40 @@ class BackendTests(unittest.TestCase):
             "duration 31s is longer than 30s",
         )
 
+    def test_labelled_jobs_preserve_all_download_options(self):
+        options = DownloadOptions(
+            output_dir=Path("downloads"),
+            format_selector="worst",
+            dry_run=True,
+            max_duration=120,
+            min_duration=5,
+            max_filesize="20M",
+            write_info_json=False,
+            write_subtitles=True,
+            write_auto_subtitles=True,
+            subtitle_languages=("en", "zh-Hans"),
+            download_archive=Path("archive.txt"),
+            cookies=Path("cookies.txt"),
+            cookies_from_browser="chrome",
+            proxy="http://127.0.0.1:2266",
+            socket_timeout=15,
+            retries=2,
+            fragment_retries=3,
+            no_playlist=False,
+            quiet=True,
+        )
+        job = build_jobs([VideoDemand(source="query", label="Snow Leopard")], options)[0]
+
+        self.assertEqual(job.options.output_template, "snow_leopard/%(title).200B-%(id)s.%(ext)s")
+        for field in (
+            "output_dir", "format_selector", "dry_run", "max_duration", "min_duration",
+            "max_filesize", "write_info_json", "write_subtitles", "write_auto_subtitles",
+            "subtitle_languages", "download_archive", "cookies", "cookies_from_browser",
+            "proxy", "socket_timeout", "retries", "fragment_retries", "no_playlist", "quiet",
+        ):
+            with self.subTest(field=field):
+                self.assertEqual(getattr(job.options, field), getattr(options, field))
+
     def test_backend_uses_yt_dlp_style_options_without_downloading_on_dry_run(self):
         with tempfile.TemporaryDirectory() as tmp:
             options = DownloadOptions(
