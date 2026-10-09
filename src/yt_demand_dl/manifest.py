@@ -12,22 +12,37 @@ def load_manifest(path: Path) -> list[VideoDemand]:
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        item = json.loads(stripped)
+        try:
+            item = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{path}:{line_number}: invalid JSON: {exc.msg}") from exc
         if not isinstance(item, dict):
             raise ValueError(f"{path}:{line_number}: expected a JSON object")
         source = item.get("source")
-        if not source:
-            raise ValueError(f"{path}:{line_number}: missing source")
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError(f"{path}:{line_number}: source must be a non-empty string")
         metadata = item.get("metadata") or {}
         if not isinstance(metadata, dict):
             raise ValueError(f"{path}:{line_number}: metadata must be an object")
+        raw_limit = item.get("limit", 1)
+        if isinstance(raw_limit, bool):
+            raise ValueError(f"{path}:{line_number}: limit must be a positive integer")
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{path}:{line_number}: limit must be a positive integer") from exc
+        if limit < 1:
+            raise ValueError(f"{path}:{line_number}: limit must be a positive integer")
+        search_prefix = str(item.get("search_prefix", "ytsearch")).strip()
+        if not search_prefix:
+            raise ValueError(f"{path}:{line_number}: search_prefix must not be empty")
         demands.append(
             VideoDemand(
-                source=str(source),
-                label=str(item["label"]) if item.get("label") else None,
+                source=source.strip(),
+                label=str(item["label"]).strip() if item.get("label") else None,
                 query=bool(item.get("query", False)),
-                limit=int(item.get("limit", 1)),
-                search_prefix=str(item.get("search_prefix", "ytsearch")),
+                limit=limit,
+                search_prefix=search_prefix,
                 metadata={str(key): str(value) for key, value in metadata.items()},
             )
         )

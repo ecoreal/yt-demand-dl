@@ -6,6 +6,20 @@ from yt_demand_dl.manifest import load_manifest
 
 
 class ManifestTests(unittest.TestCase):
+    def test_invalid_rows_include_line_context(self):
+        cases = (
+            ("{broken", "invalid JSON"),
+            ('{"source": ""}', "source must be a non-empty string"),
+            ('{"source": "x", "limit": 0}', "limit must be a positive integer"),
+            ('{"source": "x", "search_prefix": ""}', "search_prefix must not be empty"),
+        )
+        for row, message in cases:
+            with self.subTest(row=row), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "manifest.jsonl"
+                path.write_text(row + "\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, rf"{path}:1:.*{message}"):
+                    load_manifest(path)
+
     def test_load_jsonl_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "manifest.jsonl"
