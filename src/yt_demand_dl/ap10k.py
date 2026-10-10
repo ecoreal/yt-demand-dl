@@ -72,23 +72,55 @@ AP10K_DEFAULT_COUNT = 53
 def load_categories(path: Path) -> tuple[str, ...]:
     """Load categories from JSON, JSONL, or newline-separated text.
 
-    COCO-style annotation files are supported by reading categories[].name.
+    COCO-style annotation files are supported by reading ``categories[].name``.
+    Malformed structured input is rejected instead of silently producing an
+    empty plan.
     """
 
     text = path.read_text(encoding="utf-8")
     stripped = text.lstrip()
-    if stripped.startswith("{"):
-        data = json.loads(text)
-        categories = data.get("categories", [])
-        names = [item["name"] for item in categories if "name" in item]
-        return tuple(_dedupe(names))
-    if stripped.startswith("["):
-        data = json.loads(text)
-        if all(isinstance(item, str) for item in data):
-            return tuple(_dedupe(data))
-        names = [item["name"] for item in data if isinstance(item, dict) and "name" in item]
-        return tuple(_dedupe(names))
-    return tuple(_dedupe(line.strip() for line in text.splitlines() if line.strip()))
+    if stripped.startswith("{") or stripped.startswith("["):
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{path}: invalid JSON: {exc.msg}") from exc
+
+        if isinstance(data, dict):
+            categories = data.get("categories")
+            if not isinstance(categories, list):
+                raise ValueError(f"{path}: categories must be an array")
+            names = _category_names(categories, path)
+        elif isinstance(data, list):
+            if all(isinstance(item, str) for item in data):
+                names = [item.strip() for item in data]
+            elif all(isinstance(item, dict) for item in data):
+                names = _category_names(data, path)
+            else:
+                raise ValueError(f"{path}: JSON array must contain only strings or objects")
+        else:
+            raise ValueError(f"{path}: JSON root must be an object or array")
+
+        result = tuple(_dedupe(names))
+        if not result:
+            raise ValueError(f"{path}: no non-empty categories found")
+        return result
+
+    result = tuple(_dedupe(line.strip() for line in text.splitlines() if line.strip()))
+    if not result:
+        raise ValueError(f"{path}: no non-empty categories found")
+    return result
+
+
+def _category_names(items: list[object], path: Path) -> list[str]:
+    names: list[str] = []
+    for index, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"{path}: categories[{index}] must be an object")
+        name = item.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"{path}: categories[{index}].name must be a non-empty string")
+        names.append(name.strip())
+    return names
 
 
 def select_categories(

@@ -28,6 +28,21 @@ class Ap10kTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     make_ap10k_jobs(category_limit=1, query_template=template)
 
+    def test_load_categories_rejects_malformed_structured_input(self):
+        cases = (
+            '{"categories": "not-an-array"}',
+            '{"categories": [{"name": ""}]}',
+            '[{"id": 1}]',
+            '["wolf", 3]',
+            '[]',
+        )
+        for content in cases:
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "categories.json"
+                path.write_text(content, encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, str(path)):
+                    load_categories(path)
+
     def test_load_categories_from_coco_annotations(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "annotations.json"
