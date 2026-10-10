@@ -42,6 +42,9 @@ class BackendTests(unittest.TestCase):
             "../escape.mp4",
             "/tmp/escape.mp4",
             "nested/../../escape.mp4",
+            r"..\escape.mp4",
+            r"C:\escape.mp4",
+            r"\\server\share\escape.mp4",
         ):
             with self.subTest(template=template):
                 with self.assertRaisesRegex(ValueError, "output_template"):

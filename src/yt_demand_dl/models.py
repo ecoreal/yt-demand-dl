@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Mapping
 
 
@@ -11,7 +11,15 @@ def validate_output_template(template: str) -> None:
     if not isinstance(template, str) or not template.strip():
         raise ValueError("output_template must be a non-empty string")
     template_path = Path(template)
-    if template_path.is_absolute() or ".." in template_path.parts:
+    portable_parts = PurePosixPath(template.replace("\\", "/")).parts
+    windows_path = PureWindowsPath(template)
+    if (
+        template_path.is_absolute()
+        or windows_path.is_absolute()
+        or windows_path.drive
+        or ".." in template_path.parts
+        or ".." in portable_parts
+    ):
         raise ValueError(
             "output_template must be a relative path without '..' components"
         )
