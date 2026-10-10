@@ -21,6 +21,11 @@ class CliTests(unittest.TestCase):
                     cli.main(args)
                 self.assertEqual(2, raised.exception.code)
 
+    def test_rejects_output_template_path_escape(self):
+        with self.assertRaises(SystemExit) as raised:
+            cli.main(["download", "query", "--output-template", "../escape.mp4"])
+        self.assertEqual(2, raised.exception.code)
+
     def test_list_ap10k_limit(self):
         out = io.StringIO()
         with redirect_stdout(out):

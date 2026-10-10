@@ -5,17 +5,23 @@ from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
 
-from .models import DownloadJob, DownloadOptions, VideoDemand
+from .models import (
+    DownloadJob,
+    DownloadOptions,
+    VideoDemand,
+    validate_output_template,
+)
 
 _SAFE_LABEL_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def safe_label(label: str) -> str:
     cleaned = _SAFE_LABEL_RE.sub("_", label.strip().lower()).strip("_")
-    return cleaned or "unlabeled"
+    return cleaned if cleaned and cleaned not in {".", ".."} else "unlabeled"
 
 
 def labelled_output_template(base_template: str, label: str) -> str:
+    validate_output_template(base_template)
     return str(Path(safe_label(label)) / base_template)
 
 

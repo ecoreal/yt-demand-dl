@@ -15,7 +15,7 @@ from .ap10k import (
 )
 from .backends import MissingYtDlpError, YtDlpBackend
 from .manifest import load_manifest
-from .models import DownloadOptions, VideoDemand
+from .models import DownloadOptions, VideoDemand, validate_output_template
 from .planner import build_jobs
 from .verify import verify_ap10k_downloads
 
@@ -49,6 +49,14 @@ def _positive_float(value: str) -> float:
     if parsed <= 0:
         raise argparse.ArgumentTypeError("must be greater than 0")
     return parsed
+
+
+def _output_template(value: str) -> str:
+    try:
+        validate_output_template(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+    return value
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -161,8 +169,12 @@ def _add_download_options(
     )
     parser.add_argument(
         "--output-template",
+        type=_output_template,
         default="%(title).200B-%(id)s.%(ext)s",
-        help="yt-dlp output template, placed under a label directory by default.",
+        help=(
+            "yt-dlp output template; use a relative path without '..' components "
+            "and place it under a label directory by default."
+        ),
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--max-duration", type=_positive_int)

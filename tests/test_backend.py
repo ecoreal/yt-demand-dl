@@ -35,6 +35,17 @@ class BackendTests(unittest.TestCase):
     def test_safe_label(self):
         self.assertEqual(safe_label("Snow Leopard"), "snow_leopard")
         self.assertEqual(safe_label("  "), "unlabeled")
+        self.assertEqual(safe_label(".."), "unlabeled")
+
+    def test_output_template_cannot_escape_output_directory(self):
+        for template in (
+            "../escape.mp4",
+            "/tmp/escape.mp4",
+            "nested/../../escape.mp4",
+        ):
+            with self.subTest(template=template):
+                with self.assertRaisesRegex(ValueError, "output_template"):
+                    DownloadOptions(output_template=template)
 
     def test_duration_filter_rejects_too_long_videos(self):
         options = DownloadOptions(max_duration=30)

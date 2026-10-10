@@ -5,6 +5,18 @@ from pathlib import Path
 from typing import Mapping
 
 
+def validate_output_template(template: str) -> None:
+    """Reject templates that can write outside the configured output directory."""
+
+    if not isinstance(template, str) or not template.strip():
+        raise ValueError("output_template must be a non-empty string")
+    template_path = Path(template)
+    if template_path.is_absolute() or ".." in template_path.parts:
+        raise ValueError(
+            "output_template must be a relative path without '..' components"
+        )
+
+
 @dataclass(frozen=True)
 class VideoDemand:
     """The user's intent for one video source or search query."""
@@ -49,6 +61,9 @@ class DownloadOptions:
     fragment_retries: int | None = None
     no_playlist: bool = True
     quiet: bool = False
+
+    def __post_init__(self) -> None:
+        validate_output_template(self.output_template)
 
 
 @dataclass(frozen=True)
