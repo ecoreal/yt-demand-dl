@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -28,6 +30,9 @@ def main(argv: list[str] | None = None) -> int:
     except MissingYtDlpError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
 
 def _positive_int(value: str) -> int:
@@ -45,10 +50,35 @@ def _non_negative_int(value: str) -> int:
 
 
 def _positive_float(value: str) -> float:
-    parsed = float(value)
-    if parsed <= 0:
-        raise argparse.ArgumentTypeError("must be greater than 0")
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a finite number greater than 0") from exc
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a finite number greater than 0")
     return parsed
+
+
+def _max_filesize(value: str) -> str:
+    text = value.strip().upper()
+    units = {"K": 1024, "KB": 1024, "M": 1024**2, "MB": 1024**2, "G": 1024**3, "GB": 1024**3}
+    multiplier = 1
+    number = text
+    for suffix, candidate in sorted(units.items(), key=lambda item: len(item[0]), reverse=True):
+        if text.endswith(suffix):
+            multiplier = candidate
+            number = text[:-len(suffix)].strip()
+            break
+    if not re.fullmatch(r"(?:\d+(?:\.\d*)?|\.\d+)", number):
+        raise argparse.ArgumentTypeError("must be a positive byte count, optionally suffixed with K/M/G")
+    try:
+        amount = float(number)
+        byte_count = amount * multiplier
+    except (OverflowError, ValueError) as exc:
+        raise argparse.ArgumentTypeError("must be a positive byte count, optionally suffixed with K/M/G") from exc
+    if not math.isfinite(byte_count) or byte_count < 1:
+        raise argparse.ArgumentTypeError("must be a positive byte count, optionally suffixed with K/M/G")
+    return value
 
 
 def _output_template(value: str) -> str:
@@ -141,7 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("--archive", type=Path)
     verify_parser.add_argument(
         "--min-height",
-        type=int,
+        type=_non_negative_int,
         help="Require selected yt-dlp info JSON height to be at least this value.",
     )
     verify_parser.add_argument(
@@ -179,7 +209,7 @@ def _add_download_options(
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--max-duration", type=_positive_int)
     parser.add_argument("--min-duration", type=_non_negative_int)
-    parser.add_argument("--max-filesize")
+    parser.add_argument("--max-filesize", type=_max_filesize)
     parser.add_argument("--download-archive", type=Path)
     parser.add_argument(
         "--socket-timeout",
@@ -188,12 +218,12 @@ def _add_download_options(
     )
     parser.add_argument(
         "--retries",
-        type=int,
+        type=_non_negative_int,
         help="HTTP retry count passed through to yt-dlp.",
     )
     parser.add_argument(
         "--fragment-retries",
-        type=int,
+        type=_non_negative_int,
         help="Fragment retry count passed through to yt-dlp.",
     )
     parser.add_argument(

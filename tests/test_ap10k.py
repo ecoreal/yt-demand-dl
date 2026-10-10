@@ -22,6 +22,12 @@ class Ap10kTests(unittest.TestCase):
         self.assertEqual(len(jobs), 54)
         self.assertEqual(jobs[-1].resolved_source(), "ytsearch2:killer whale animal video")
 
+    def test_query_template_requires_category_field_and_handles_malformed_input(self):
+        for template in ("animal video", "{unknown}", "{category"):
+            with self.subTest(template=template):
+                with self.assertRaises(ValueError):
+                    make_ap10k_jobs(category_limit=1, query_template=template)
+
     def test_load_categories_from_coco_annotations(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "annotations.json"

@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from yt_demand_dl.backends.yt_dlp_backend import YtDlpBackend
+from yt_demand_dl.backends.yt_dlp_backend import YtDlpBackend, _parse_filesize
 from yt_demand_dl.filters import duration_rejection_reason
 from yt_demand_dl.models import DownloadJob, DownloadOptions, VideoDemand
 from yt_demand_dl.planner import build_jobs, safe_label
@@ -31,6 +31,13 @@ class FakeYoutubeDL:
 class BackendTests(unittest.TestCase):
     def setUp(self):
         FakeYoutubeDL.calls = []
+
+    def test_filesize_parser_rejects_invalid_or_non_positive_values(self):
+        self.assertEqual(_parse_filesize("1.5M"), 1_572_864)
+        for value in ("0", "-1M", "nan", "inf", "not-a-size"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    _parse_filesize(value)
 
     def test_safe_label(self):
         self.assertEqual(safe_label("Snow Leopard"), "snow_leopard")

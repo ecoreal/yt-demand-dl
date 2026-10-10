@@ -2,7 +2,7 @@ import io
 import tempfile
 import unittest
 from pathlib import Path
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
 from yt_demand_dl import cli
@@ -15,6 +15,13 @@ class CliTests(unittest.TestCase):
             ["ap10k", "--videos-per-category", "0"],
             ["download", "query", "--max-duration", "-1"],
             ["download", "query", "--socket-timeout", "0"],
+            ["download", "query", "--socket-timeout", "nan"],
+            ["download", "query", "--retries", "-1"],
+            ["download", "query", "--fragment-retries", "-1"],
+            ["verify-ap10k", "/tmp/downloads", "--min-height", "-1"],
+            ["download", "query", "--max-filesize", "0"],
+            ["download", "query", "--max-filesize", "not-a-size"],
+            ["download", "query", "--max-filesize", "1e1000"],
         ):
             with self.subTest(args=args):
                 with self.assertRaises(SystemExit) as raised:
@@ -25,6 +32,24 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as raised:
             cli.main(["download", "query", "--output-template", "../escape.mp4"])
         self.assertEqual(2, raised.exception.code)
+
+    def test_cli_reports_file_and_template_errors_without_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            err = io.StringIO()
+            with redirect_stderr(err):
+                code = cli.main(["download-manifest", str(Path(tmp) / "missing.jsonl")])
+            self.assertEqual(code, 2)
+            self.assertIn("error:", err.getvalue())
+            self.assertNotIn("Traceback", err.getvalue())
+
+        err = io.StringIO()
+        with redirect_stderr(err):
+            code = cli.main(
+                ["ap10k", "--plan-only", "--category-limit", "1", "--query-template", "{unknown}"]
+            )
+        self.assertEqual(code, 2)
+        self.assertIn("query_template", err.getvalue())
+        self.assertNotIn("Traceback", err.getvalue())
 
     def test_list_ap10k_limit(self):
         out = io.StringIO()

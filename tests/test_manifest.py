@@ -11,7 +11,9 @@ class ManifestTests(unittest.TestCase):
             ("{broken", "invalid JSON"),
             ('{"source": ""}', "source must be a non-empty string"),
             ('{"source": "x", "limit": 0}', "limit must be a positive integer"),
-            ('{"source": "x", "search_prefix": ""}', "search_prefix must not be empty"),
+            ('{"source": "x", "search_prefix": ""}', "search_prefix must be a non-empty string"),
+            ('{"source": "x", "query": "false"}', "query must be a boolean"),
+            ('{"source": "x", "limit": 1.5}', "limit must be a positive integer"),
         )
         for row, message in cases:
             with self.subTest(row=row), tempfile.TemporaryDirectory() as tmp:

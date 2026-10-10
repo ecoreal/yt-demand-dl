@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
+import re
 from typing import Any
 
 from yt_demand_dl.filters import make_match_filter
@@ -117,20 +119,38 @@ def _parse_cookies_from_browser(value: str) -> tuple[str, ...]:
     return tuple(part for part in value.split(":") if part)
 
 
+_FILESIZE_RE = re.compile(
+    r"^(?P<number>(?:\d+(?:\.\d*)?|\.\d+))\s*"
+    r"(?P<unit>K|KB|M|MB|G|GB)?$",
+    re.IGNORECASE,
+)
+_FILESIZE_MULTIPLIERS = {
+    None: 1,
+    "K": 1024,
+    "KB": 1024,
+    "M": 1024**2,
+    "MB": 1024**2,
+    "G": 1024**3,
+    "GB": 1024**3,
+}
+
+
 def _parse_filesize(value: str) -> int:
-    text = value.strip().upper()
-    units = {
-        "K": 1024,
-        "KB": 1024,
-        "M": 1024**2,
-        "MB": 1024**2,
-        "G": 1024**3,
-        "GB": 1024**3,
-    }
-    for suffix, multiplier in sorted(units.items(), key=lambda item: len(item[0]), reverse=True):
-        if text.endswith(suffix):
-            return int(float(text[: -len(suffix)].strip()) * multiplier)
-    return int(text)
+    if not isinstance(value, str):
+        raise ValueError("max_filesize must be a positive byte count, optionally suffixed with K/M/G")
+    match = _FILESIZE_RE.fullmatch(value.strip())
+    if not match:
+        raise ValueError("max_filesize must be a positive byte count, optionally suffixed with K/M/G")
+    try:
+        amount = Decimal(match.group("number")) * _FILESIZE_MULTIPLIERS[
+            match.group("unit").upper() if match.group("unit") else None
+        ]
+    except (InvalidOperation, OverflowError) as exc:
+        raise ValueError("max_filesize must be a positive byte count, optionally suffixed with K/M/G") from exc
+    result = int(amount)
+    if amount <= 0 or result < 1:
+        raise ValueError("max_filesize must be a positive byte count, optionally suffixed with K/M/G")
+    return result
 
 
 def _download_progress_hook(downloaded_files: list[Path]):

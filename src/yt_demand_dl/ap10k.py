@@ -118,17 +118,33 @@ def make_ap10k_jobs(
     query_template: str = "{category} animal video",
     exclude: Iterable[str] | None = None,
 ) -> list[VideoDemand]:
+    try:
+        probe = query_template.format(category="__yt_demand_category__")
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError) as exc:
+        raise ValueError(
+            "query_template must be a valid format string using {category}"
+        ) from exc
+    if probe == query_template:
+        raise ValueError("query_template must include the {category} field")
     selected = select_categories(categories, limit=category_limit, exclude=exclude)
-    return [
-        VideoDemand(
-            source=query_template.format(category=category),
-            label=category,
-            query=True,
-            limit=videos_per_category,
-            metadata={"dataset": "ap10k"},
+    demands: list[VideoDemand] = []
+    for category in selected:
+        try:
+            source = query_template.format(category=category)
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                "query_template must be a valid format string using {category}"
+            ) from exc
+        demands.append(
+            VideoDemand(
+                source=source,
+                label=category,
+                query=True,
+                limit=videos_per_category,
+                metadata={"dataset": "ap10k"},
+            )
         )
-        for category in selected
-    ]
+    return demands
 
 
 def _dedupe(values: Iterable[str]) -> list[str]:
