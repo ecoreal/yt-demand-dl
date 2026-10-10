@@ -14,6 +14,9 @@ class ManifestTests(unittest.TestCase):
             ('{"source": "x", "search_prefix": ""}', "search_prefix must be a non-empty string"),
             ('{"source": "x", "query": "false"}', "query must be a boolean"),
             ('{"source": "x", "limit": 1.5}', "limit must be a positive integer"),
+            ('{"source": "x", "metadata": null}', "metadata must be an object"),
+            ('{"source": "x", "metadata": false}', "metadata must be an object"),
+            ('{"source": "x", "metadata": []}', "metadata must be an object"),
         )
         for row, message in cases:
             with self.subTest(row=row), tempfile.TemporaryDirectory() as tmp:

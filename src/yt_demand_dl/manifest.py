@@ -21,7 +21,7 @@ def load_manifest(path: Path) -> list[VideoDemand]:
         source = item.get("source")
         if not isinstance(source, str) or not source.strip():
             raise ValueError(f"{path}:{line_number}: source must be a non-empty string")
-        metadata = item.get("metadata") or {}
+        metadata = item.get("metadata", {})
         if not isinstance(metadata, dict):
             raise ValueError(f"{path}:{line_number}: metadata must be an object")
         raw_limit = item.get("limit", 1)

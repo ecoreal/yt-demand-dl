@@ -121,6 +121,87 @@ class CliTests(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertEqual(missing.read_text(encoding="utf-8"), "argali sheep\n")
 
+    def test_run_jobs_continues_after_a_job_exception(self):
+        calls = []
+
+        class FakeBackend:
+            def download(self, job):
+                calls.append(job.label)
+                if job.label == "first":
+                    raise OSError("temporary network failure")
+                return type("Result", (), {"item_count": 1, "downloaded": True})()
+
+        from yt_demand_dl.models import DownloadJob, DownloadOptions, VideoDemand
+
+        jobs = [
+            DownloadJob(VideoDemand(source="one", label="first"), DownloadOptions()),
+            DownloadJob(VideoDemand(source="two", label="second"), DownloadOptions()),
+        ]
+        out = io.StringIO()
+        err = io.StringIO()
+        with patch.object(cli, "YtDlpBackend", return_value=FakeBackend()):
+            with redirect_stdout(out), redirect_stderr(err):
+                code = cli._run_jobs(jobs)
+
+        self.assertEqual(code, 1)
+        self.assertEqual(calls, ["first", "second"])
+        self.assertIn("temporary network failure", err.getvalue())
+        self.assertIn("items=1 downloaded=True", out.getvalue())
+
+    def test_atomic_plan_write_replaces_complete_file(self):
+        from yt_demand_dl.models import DownloadJob, DownloadOptions, VideoDemand
+
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / "nested" / "plan.jsonl"
+            destination.parent.mkdir()
+            destination.write_text("old complete content\n", encoding="utf-8")
+            job = DownloadJob(
+                VideoDemand(source="query", label="wolf", query=True),
+                DownloadOptions(output_dir=Path(tmp)),
+            )
+            out = io.StringIO()
+            with redirect_stdout(out):
+                code = cli._print_plan([job], destination)
+
+            content = destination.read_text(encoding="utf-8")
+            self.assertEqual(code, 0)
+            self.assertIn('"label": "wolf"', content)
+            self.assertNotEqual(content, "old complete content\n")
+            self.assertEqual(list(destination.parent.glob(".plan.jsonl.*.tmp")), [])
+
+    def test_atomic_missing_output_replaces_complete_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            missing = Path(tmp) / "nested" / "missing.txt"
+            missing.parent.mkdir()
+            missing.write_text("stale\n", encoding="utf-8")
+            out = io.StringIO()
+            with redirect_stdout(out):
+                code = cli.main(
+                    [
+                        "verify-ap10k", str(root), "--category-limit", "1",
+                        "--missing-output", str(missing),
+                    ]
+                )
+
+            self.assertEqual(code, 1)
+            self.assertEqual(missing.read_text(encoding="utf-8"), "antelope\n")
+            self.assertEqual(list(missing.parent.glob(".missing.txt.*.tmp")), [])
+
+    def test_atomic_write_failure_preserves_previous_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / "plan.jsonl"
+            destination.write_text("previous valid plan\n", encoding="utf-8")
+            with patch.object(cli.os, "replace", side_effect=OSError("replace failed")):
+                with self.assertRaises(OSError):
+                    cli._atomic_write_text(destination, "new plan\n")
+
+            self.assertEqual(
+                destination.read_text(encoding="utf-8"),
+                "previous valid plan\n",
+            )
+            self.assertEqual(list(destination.parent.glob(".plan.jsonl.*.tmp")), [])
+
     def test_resume_ap10k_downloads_only_missing_categories(self):
         calls = []
 

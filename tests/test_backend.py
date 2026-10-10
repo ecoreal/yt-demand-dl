@@ -1,11 +1,64 @@
 import tempfile
+import threading
+import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from yt_demand_dl.backends.yt_dlp_backend import YtDlpBackend, _parse_filesize
 from yt_demand_dl.filters import duration_rejection_reason
 from yt_demand_dl.models import DownloadJob, DownloadOptions, VideoDemand
 from yt_demand_dl.planner import build_jobs, safe_label
+
+
+class ArchiveWritingYoutubeDL:
+    calls = []
+
+    def __init__(self, options):
+        self.options = options
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def extract_info(self, source, download):
+        archive = Path(self.options["download_archive"])
+        self.__class__.calls.append(archive)
+        archive.write_text("youtube video\n", encoding="utf-8")
+        return {"id": "video-1"}
+
+
+class ConcurrentArchiveYoutubeDL:
+    guard = threading.Lock()
+    active = 0
+    maximum_active = 0
+
+    def __init__(self, options):
+        self.options = options
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def extract_info(self, source, download):
+        archive = Path(self.options["download_archive"])
+        with self.guard:
+            self.__class__.active += 1
+            self.__class__.maximum_active = max(
+                self.__class__.maximum_active, self.__class__.active
+            )
+        try:
+            time.sleep(0.02)
+            with archive.open("a", encoding="utf-8") as handle:
+                handle.write(f"{source}\n")
+            return {"id": source}
+        finally:
+            with self.guard:
+                self.__class__.active -= 1
 
 
 class FakeYoutubeDL:
@@ -56,6 +109,84 @@ class BackendTests(unittest.TestCase):
             with self.subTest(template=template):
                 with self.assertRaisesRegex(ValueError, "output_template"):
                     DownloadOptions(output_template=template)
+
+    def test_download_options_validate_api_boundaries(self):
+        invalid_options = (
+            {"format_selector": ""},
+            {"max_duration": 0},
+            {"max_duration": True},
+            {"min_duration": -1},
+            {"min_duration": 11, "max_duration": 10},
+            {"max_filesize": "0"},
+            {"max_filesize": "not-a-size"},
+            {"socket_timeout": 0},
+            {"socket_timeout": float("nan")},
+            {"socket_timeout": float("inf")},
+            {"retries": -1},
+            {"retries": True},
+            {"fragment_retries": -1},
+            {"subtitle_languages": ("en", " ")},
+        )
+        for kwargs in invalid_options:
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                DownloadOptions(**kwargs)
+
+        options = DownloadOptions(
+            min_duration=0,
+            max_duration=1,
+            max_filesize="1.5M",
+            socket_timeout=0.1,
+            retries=0,
+            fragment_retries=0,
+        )
+        self.assertEqual(options.max_filesize, "1.5M")
+
+    def test_download_archive_is_staged_and_atomically_committed(self):
+        ArchiveWritingYoutubeDL.calls = []
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "state" / "downloaded.txt"
+            options = DownloadOptions(
+                output_dir=root / "downloads",
+                download_archive=archive,
+            )
+            job = DownloadJob(VideoDemand(source="https://youtu.be/example"), options)
+
+            YtDlpBackend(ArchiveWritingYoutubeDL).download(job)
+
+            self.assertTrue(archive.parent.is_dir())
+            self.assertEqual(archive.read_text(encoding="utf-8"), "youtube video\n")
+            self.assertNotEqual(ArchiveWritingYoutubeDL.calls[0], archive)
+            self.assertEqual(list(archive.parent.glob(".downloaded.txt.*.tmp")), [])
+            self.assertTrue((archive.parent / ".downloaded.txt.lock").exists())
+
+    def test_download_archive_serializes_concurrent_jobs(self):
+        ConcurrentArchiveYoutubeDL.active = 0
+        ConcurrentArchiveYoutubeDL.maximum_active = 0
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "state" / "downloaded.txt"
+            options = DownloadOptions(
+                output_dir=root / "downloads",
+                download_archive=archive,
+            )
+            jobs = [
+                DownloadJob(VideoDemand(source="one"), options),
+                DownloadJob(VideoDemand(source="two"), options),
+            ]
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                list(
+                    executor.map(
+                        lambda job: YtDlpBackend(ConcurrentArchiveYoutubeDL).download(job),
+                        jobs,
+                    )
+                )
+
+            self.assertEqual(ConcurrentArchiveYoutubeDL.maximum_active, 1)
+            self.assertEqual(
+                archive.read_text(encoding="utf-8").splitlines(),
+                sorted(["one", "two"]),
+            )
 
     def test_duration_filter_rejects_too_long_videos(self):
         options = DownloadOptions(max_duration=30)

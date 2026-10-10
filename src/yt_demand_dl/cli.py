@@ -6,6 +6,7 @@ import math
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 from .ap10k import (
@@ -341,11 +342,43 @@ def _run_jobs(jobs) -> int:
     failed = 0
     for job in jobs:
         print(f"{job.label}: {job.demand.resolved_source()}")
-        result = backend.download(job)
+        try:
+            result = backend.download(job)
+        except MissingYtDlpError:
+            raise
+        except Exception as exc:
+            failed += 1
+            message = str(exc) or exc.__class__.__name__
+            print(f"  error={message}", file=sys.stderr)
+            continue
         print(f"  items={result.item_count} downloaded={result.downloaded}")
         if result.item_count == 0:
             failed += 1
     return 1 if failed else 0
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            dir=path.parent,
+        )
+        temporary_path = Path(temporary_name)
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def _print_plan(jobs, plan_output: Path | None = None) -> int:
@@ -358,10 +391,9 @@ def _print_plan(jobs, plan_output: Path | None = None) -> int:
         for job in jobs
     ]
     if plan_output:
-        plan_output.parent.mkdir(parents=True, exist_ok=True)
-        plan_output.write_text(
+        _atomic_write_text(
+            plan_output,
             "\n".join(json.dumps(line, ensure_ascii=True) for line in lines) + "\n",
-            encoding="utf-8",
         )
     for line in lines:
         print(f"{line['label']}: {line['source']}")
@@ -383,11 +415,7 @@ def _verify_ap10k(args: argparse.Namespace) -> int:
         for category in result.missing:
             print(f"  {category}")
         if args.missing_output:
-            args.missing_output.parent.mkdir(parents=True, exist_ok=True)
-            args.missing_output.write_text(
-                "\n".join(result.missing) + "\n",
-                encoding="utf-8",
-            )
+            _atomic_write_text(args.missing_output, "\n".join(result.missing) + "\n")
         return 1
     if args.min_height is not None:
         below = result.below_min_height(args.min_height)
@@ -398,8 +426,7 @@ def _verify_ap10k(args: argparse.Namespace) -> int:
                 print(f"  {status.category}: {height}")
             return 1
     if args.missing_output:
-        args.missing_output.parent.mkdir(parents=True, exist_ok=True)
-        args.missing_output.write_text("", encoding="utf-8")
+        _atomic_write_text(args.missing_output, "")
     return 0
 
 
