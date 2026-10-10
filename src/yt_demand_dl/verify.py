@@ -80,12 +80,17 @@ def verify_ap10k_downloads(
 
 
 def _media_files(directory: Path) -> list[Path]:
-    if not directory.exists():
+    # Verification must only inspect files physically contained in the download
+    # tree.  Following a directory or file symlink could make an unrelated
+    # external file count as a completed download.
+    if not directory.is_dir() or directory.is_symlink():
         return []
     return sorted(
         path
         for path in directory.iterdir()
-        if path.is_file() and path.suffix.lower() in MEDIA_SUFFIXES
+        if not path.is_symlink()
+        and path.is_file()
+        and path.suffix.lower() in MEDIA_SUFFIXES
     )
 
 
@@ -97,9 +102,13 @@ def _archive_entries(path: Path) -> int | None:
 
 
 def _selected_height(directory: Path) -> int | None:
-    if not directory.exists():
+    if not directory.is_dir() or directory.is_symlink():
         return None
-    info_files = sorted(directory.glob("*.info.json"))
+    info_files = sorted(
+        path
+        for path in directory.iterdir()
+        if not path.is_symlink() and path.is_file() and path.name.endswith(".info.json")
+    )
     if not info_files:
         return None
     try:
