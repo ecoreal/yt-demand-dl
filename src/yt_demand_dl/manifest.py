@@ -6,9 +6,47 @@ from pathlib import Path
 from .models import VideoDemand
 
 
+# Manifests are hand-authored lists of download jobs. Bound both the file size
+# and the row count so a mistaken path (a log file, a device, an attacker-planted
+# symlink) cannot make the planner read an unbounded amount of data.
+MAX_MANIFEST_BYTES = 8 * 1024 * 1024
+MAX_MANIFEST_ROWS = 10_000
+
+
 def load_manifest(path: Path) -> list[VideoDemand]:
+    # Refuse symlinks and non-regular files: a manifest is a reviewed input, and
+    # following a link could read an unrelated file outside the intended tree.
+    if path.is_symlink():
+        raise ValueError(f"{path}: refusing to read a symlinked manifest")
+    if not path.is_file():
+        raise ValueError(f"{path}: manifest must be a regular file")
+
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        raise ValueError(f"{path}: cannot read manifest: {exc}") from exc
+    if size > MAX_MANIFEST_BYTES:
+        raise ValueError(
+            f"{path}: manifest is {size} bytes, exceeding the "
+            f"{MAX_MANIFEST_BYTES}-byte limit"
+        )
+
+    data = path.read_bytes()
+    if len(data) > MAX_MANIFEST_BYTES:
+        raise ValueError(
+            f"{path}: manifest exceeds the {MAX_MANIFEST_BYTES}-byte limit"
+        )
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"{path}: manifest is not valid UTF-8: {exc}") from exc
+
     demands: list[VideoDemand] = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for line_number, line in enumerate(text.splitlines(), 1):
+        if line_number > MAX_MANIFEST_ROWS:
+            raise ValueError(
+                f"{path}: manifest has more than {MAX_MANIFEST_ROWS} rows"
+            )
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue

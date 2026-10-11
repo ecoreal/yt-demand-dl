@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from yt_demand_dl.manifest import load_manifest
+from yt_demand_dl.manifest import MAX_MANIFEST_BYTES, MAX_MANIFEST_ROWS, load_manifest
 
 
 class ManifestTests(unittest.TestCase):
@@ -24,6 +24,42 @@ class ManifestTests(unittest.TestCase):
                 path.write_text(row + "\n", encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, rf"{path}:1:.*{message}"):
                     load_manifest(path)
+
+    def test_rejects_symlinked_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            real = root / "real.jsonl"
+            real.write_text('{"source": "x"}\n', encoding="utf-8")
+            link = root / "link.jsonl"
+            link.symlink_to(real)
+            with self.assertRaisesRegex(ValueError, "symlinked manifest"):
+                load_manifest(link)
+
+    def test_rejects_non_file_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, "regular file"):
+                load_manifest(Path(tmp))
+
+    def test_rejects_oversized_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manifest.jsonl"
+            path.write_bytes(b"x" * (MAX_MANIFEST_BYTES + 1))
+            with self.assertRaisesRegex(ValueError, "exceeding"):
+                load_manifest(path)
+
+    def test_rejects_too_many_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manifest.jsonl"
+            path.write_text('{"source": "x"}\n' * (MAX_MANIFEST_ROWS + 1), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "more than"):
+                load_manifest(path)
+
+    def test_rejects_invalid_utf8(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manifest.jsonl"
+            path.write_bytes(b"\xff\xfe")
+            with self.assertRaisesRegex(ValueError, "not valid UTF-8"):
+                load_manifest(path)
 
     def test_load_jsonl_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
