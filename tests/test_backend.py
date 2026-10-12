@@ -188,6 +188,45 @@ class BackendTests(unittest.TestCase):
                 sorted(["one", "two"]),
             )
 
+    def test_cookies_from_browser_matches_yt_dlp_browser_spec(self):
+        def backend_options(value):
+            options = DownloadOptions(cookies_from_browser=value)
+            return YtDlpBackend(FakeYoutubeDL).build_options(options)["cookiesfrombrowser"]
+
+        self.assertEqual(backend_options("chrome"), ("chrome", None, None, None))
+        self.assertEqual(
+            backend_options("firefox:default"),
+            ("firefox", "default", None, None),
+        )
+        self.assertEqual(
+            backend_options("firefox::Meta"),
+            ("firefox", None, None, "Meta"),
+        )
+        self.assertEqual(
+            backend_options("chrome+gnomekeyring:Profile 2::Default"),
+            ("chrome", "Profile 2", "GNOMEKEYRING", "Default"),
+        )
+
+    def test_cookies_from_browser_rejects_malformed_spec(self):
+        invalid = (
+            "not a browser!",
+            "chrome:",
+            "chrome+",
+            ":default",
+            "chrome+:::",
+        )
+        for value in invalid:
+            with self.subTest(value=value):
+                options = DownloadOptions(cookies_from_browser=value)
+                with self.assertRaises(ValueError):
+                    YtDlpBackend(FakeYoutubeDL).build_options(options)
+        # The invalid spec still reaches the backend: only the built yt-dlp
+        # options are rejected, so a user-visible error is produced at build time.
+        self.assertEqual(
+            DownloadOptions(cookies_from_browser="not a browser!").cookies_from_browser,
+            "not a browser!",
+        )
+
     def test_duration_filter_rejects_too_long_videos(self):
         options = DownloadOptions(max_duration=30)
         self.assertEqual(

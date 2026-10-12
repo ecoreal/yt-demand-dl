@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager, nullcontext
 import os
 from pathlib import Path
+import re
 import shutil
 import tempfile
 import threading
@@ -215,8 +216,60 @@ def _extract_ids(info: Any) -> list[str]:
     return []
 
 
-def _parse_cookies_from_browser(value: str) -> tuple[str, ...]:
-    return tuple(part for part in value.split(":") if part)
+# Browser/keyring names accepted by yt-dlp's --cookies-from-browser option.
+# They are duplicated here so the package still imports without the optional
+# yt-dlp extra; validation happens before the spec reaches yt-dlp, whose
+# loader would otherwise fail per request instead of per invocation.
+_YTDLP_BROWSERS = frozenset(
+    {"brave", "chrome", "chromium", "edge", "firefox", "opera", "safari", "vivaldi", "whale"}
+)
+_YTDLP_KEYRINGS = frozenset({"basictext", "gnomekeyring", "kwallet", "kwallet5", "kwallet6"})
+_YTDLP_BROWSER_SPEC_RE = re.compile(
+    r"""
+    (?P<name>[^+:]+)
+    (?:\s*\+\s*(?P<keyring>[^:]+))?
+    (?:\s*:\s*(?!:)(?P<profile>.+?))?
+    (?:\s*::\s*(?P<container>.+))?
+    """,
+    re.VERBOSE,
+)
+
+
+def _parse_cookies_from_browser(value: str) -> tuple[str | None, ...]:
+    """Parse a ``BROWSER[+KEYRING][:PROFILE][::CONTAINER]`` spec.
+
+    Returns yt-dlp's four-item ``cookiesfrombrowser`` tuple.  Invalid specs are
+    rejected here so the CLI reports one clear error instead of a per-request
+    cookie failure for every job.
+    """
+
+    match = _YTDLP_BROWSER_SPEC_RE.fullmatch(value)
+    if match is None:
+        raise ValueError(f"invalid cookies-from-browser spec: {value!r}")
+    browser = match.group("name").strip().lower()
+    if browser not in _YTDLP_BROWSERS:
+        raise ValueError(
+            f"unsupported browser for cookies-from-browser: {browser!r}; "
+            f"supported: {', '.join(sorted(_YTDLP_BROWSERS))}"
+        )
+    keyring = match.group("keyring")
+    if keyring is not None:
+        keyring = keyring.strip().upper()
+        if keyring.lower() not in _YTDLP_KEYRINGS:
+            raise ValueError(
+                f"unsupported keyring for cookies-from-browser: {keyring!r}; "
+                f"supported: {', '.join(sorted(name.upper() for name in _YTDLP_KEYRINGS))}"
+            )
+    profile = _optional_browser_part(match.group("profile"))
+    container = _optional_browser_part(match.group("container"))
+    return (browser, profile, keyring, container)
+
+
+def _optional_browser_part(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def _parse_filesize(value: str) -> int:
