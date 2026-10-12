@@ -68,6 +68,19 @@ class VerifyTests(unittest.TestCase):
 
             self.assertEqual(result.statuses[0].selected_height, 720)
 
+    def test_verify_treats_unreadable_archive_as_unknown(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "antelope").mkdir()
+            (root / "antelope" / "video.mp4").write_bytes(b"fake")
+            archive = root / "archive.txt"
+            archive.write_bytes(b"\xff\xfe binary junk")
+
+            result = verify_ap10k_downloads(root, category_limit=1)
+
+        self.assertEqual(result.complete_count, 1)
+        self.assertIsNone(result.archive_entries)
+
     def test_verify_ap10k_downloads_reports_missing_categories(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

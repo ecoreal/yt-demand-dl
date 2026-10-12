@@ -97,8 +97,13 @@ def _media_files(directory: Path) -> list[Path]:
 def _archive_entries(path: Path) -> int | None:
     if not path.exists():
         return None
-    with path.open("r", encoding="utf-8") as handle:
-        return sum(1 for line in handle if line.strip())
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            return sum(1 for line in handle if line.strip())
+    except (OSError, UnicodeDecodeError):
+        # A corrupt archive must not abort verification of the download tree:
+        # report it as unknown and let the caller decide what to do.
+        return None
 
 
 def _selected_height(directory: Path) -> int | None:
