@@ -37,7 +37,7 @@ def load_manifest(path: Path) -> list[VideoDemand]:
             f"{path}: manifest exceeds the {MAX_MANIFEST_BYTES}-byte limit"
         )
     try:
-        text = data.decode("utf-8")
+        text = data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
         raise ValueError(f"{path}: manifest is not valid UTF-8: {exc}") from exc
 

@@ -77,6 +77,30 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(demands[0].resolved_source(), "https://youtu.be/example")
         self.assertEqual(demands[1].resolved_source(), "ytsearch2:squirrel animal video")
 
+    def test_manifest_tolerates_utf8_bom(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manifest.jsonl"
+            path.write_text(
+                '{"label": "badger", "source": "https://youtu.be/example"}\n',
+                encoding="utf-8-sig",
+            )
+
+            demands = load_manifest(path)
+
+        self.assertEqual(len(demands), 1)
+        self.assertEqual(demands[0].source, "https://youtu.be/example")
+
+    def test_manifest_keeps_rejecting_non_utf8_encodings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manifest.jsonl"
+            path.write_text(
+                '{"label": "badger", "source": "https://youtu.be/example"}\n',
+                encoding="utf-16",
+            )
+
+            with self.assertRaisesRegex(ValueError, "not valid UTF-8"):
+                load_manifest(path)
+
 
 if __name__ == "__main__":
     unittest.main()

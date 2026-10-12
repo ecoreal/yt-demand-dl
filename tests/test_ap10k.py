@@ -60,6 +60,19 @@ class Ap10kTests(unittest.TestCase):
             )
             self.assertEqual(load_categories(path), ("antelope", "wolf"))
 
+    def test_load_categories_strips_utf8_bom(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            json_path = Path(tmp) / "annotations.json"
+            json_path.write_text(
+                json.dumps({"categories": [{"id": 1, "name": "wolf"}]}),
+                encoding="utf-8-sig",
+            )
+            text_path = Path(tmp) / "categories.txt"
+            text_path.write_text("wolf\r\nfox\r\n", encoding="utf-8-sig")
+
+            self.assertEqual(load_categories(json_path), ("wolf",))
+            self.assertEqual(load_categories(text_path), ("wolf", "fox"))
+
 
 if __name__ == "__main__":
     unittest.main()

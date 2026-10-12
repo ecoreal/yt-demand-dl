@@ -77,7 +77,10 @@ def load_categories(path: Path) -> tuple[str, ...]:
     empty plan.
     """
 
-    text = path.read_text(encoding="utf-8")
+    # utf-8-sig strips a UTF-8 BOM, which Windows editors and some annotation
+    # exporters prepend; without it a JSON file would be read as raw text and a
+    # COCO categories file would silently turn into one junk category.
+    text = path.read_text(encoding="utf-8-sig")
     stripped = text.lstrip()
     if stripped.startswith("{") or stripped.startswith("["):
         try:
