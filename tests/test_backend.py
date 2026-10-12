@@ -182,10 +182,74 @@ class BackendTests(unittest.TestCase):
                     )
                 )
 
+            # The lock guarantees mutual exclusion, not a completion order, so
+            # compare the staged lines without assuming which job ran first.
             self.assertEqual(ConcurrentArchiveYoutubeDL.maximum_active, 1)
             self.assertEqual(
-                archive.read_text(encoding="utf-8").splitlines(),
-                sorted(["one", "two"]),
+                sorted(archive.read_text(encoding="utf-8").splitlines()),
+                ["one", "two"],
+            )
+
+    def test_download_archive_is_serialized_even_when_commit_order_inverts(self):
+        # Deterministically let the second-submitted job take the archive lock
+        # first, so the committed order is the reverse of the submission order.
+        # Both entries must survive and the lock must admit one job at a time.
+        started = threading.Event()
+        release = threading.Event()
+        state = {"active": 0, "maximum_active": 0}
+        guard = threading.Lock()
+
+        class PausingYoutubeDL:
+            def __init__(self, options):
+                self.options = options
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def extract_info(self, source, download):
+                with guard:
+                    state["active"] += 1
+                    state["maximum_active"] = max(state["maximum_active"], state["active"])
+                try:
+                    archive = Path(self.options["download_archive"])
+                    if source == "two":
+                        # "two" holds the archive lock while it writes.
+                        started.set()
+                        if not release.wait(10):
+                            raise AssertionError("test never released the first job")
+                    with archive.open("a", encoding="utf-8") as handle:
+                        handle.write(f"{source}\n")
+                    return {"id": source}
+                finally:
+                    with guard:
+                        state["active"] -= 1
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "state" / "downloaded.txt"
+            options = DownloadOptions(
+                output_dir=root / "downloads",
+                download_archive=archive,
+            )
+            jobs = [
+                DownloadJob(VideoDemand(source="one"), options),
+                DownloadJob(VideoDemand(source="two"), options),
+            ]
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                first = executor.submit(YtDlpBackend(PausingYoutubeDL).download, jobs[1])
+                self.assertTrue(started.wait(10))
+                second = executor.submit(YtDlpBackend(PausingYoutubeDL).download, jobs[0])
+                release.set()
+                first.result(10)
+                second.result(10)
+
+            self.assertEqual(state["maximum_active"], 1)
+            self.assertEqual(
+                sorted(archive.read_text(encoding="utf-8").splitlines()),
+                ["one", "two"],
             )
 
     def test_cookies_from_browser_matches_yt_dlp_browser_spec(self):
