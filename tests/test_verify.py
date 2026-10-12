@@ -32,6 +32,42 @@ class VerifyTests(unittest.TestCase):
         self.assertIsNone(result.statuses[0].selected_height)
         self.assertIsNone(result.statuses[1].selected_height)
 
+    def test_verify_ignores_malformed_info_json_bodies(self):
+        payloads = (
+            b"[]",
+            b"null",
+            b'"text"',
+            b"\xff\xfe\x00not-utf8",
+            b'{"requested_downloads": {"0": {"height": 1080}}}',
+            b'{"requested_downloads": [null], "height": "1080"}',
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                directory = root / "antelope"
+                directory.mkdir()
+                (directory / "video.mp4").write_bytes(b"fake")
+                (directory / "video.info.json").write_bytes(payload)
+
+                result = verify_ap10k_downloads(root, category_limit=1)
+
+                self.assertEqual(result.complete_count, 1)
+                self.assertIsNone(result.statuses[0].selected_height)
+
+    def test_verify_prefers_requested_download_height(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "antelope").mkdir()
+            (root / "antelope" / "video.mp4").write_bytes(b"fake")
+            (root / "antelope" / "video.info.json").write_text(
+                '{"requested_downloads": [{"height": 720}], "height": 1080}',
+                encoding="utf-8",
+            )
+
+            result = verify_ap10k_downloads(root, category_limit=1)
+
+            self.assertEqual(result.statuses[0].selected_height, 720)
+
     def test_verify_ap10k_downloads_reports_missing_categories(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

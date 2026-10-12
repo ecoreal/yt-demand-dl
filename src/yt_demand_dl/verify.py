@@ -113,12 +113,18 @@ def _selected_height(directory: Path) -> int | None:
         return None
     try:
         data = json.loads(info_files[0].read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    # A truncated or hand-edited info JSON must not abort verification: only a
+    # well-formed object is trusted, and a non-object root reports "unknown".
+    if not isinstance(data, dict):
         return None
     requested = data.get("requested_downloads") or []
-    if requested and isinstance(requested[0], dict):
-        height = requested[0].get("height")
-        if isinstance(height, int):
-            return height
+    if isinstance(requested, list):
+        first = requested[0] if requested else None
+        if isinstance(first, dict):
+            height = first.get("height")
+            if isinstance(height, int):
+                return height
     height = data.get("height")
     return height if isinstance(height, int) else None
