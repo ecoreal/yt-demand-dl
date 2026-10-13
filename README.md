@@ -1,5 +1,9 @@
 # yt-demand-dl
 
+[![CI](https://github.com/ecoreal/yt-demand-dl/actions/workflows/ci.yml/badge.svg)](https://github.com/ecoreal/yt-demand-dl/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 `yt-demand-dl` is a small Python library and CLI for demand-driven YouTube
 downloads. It does not reimplement YouTube extraction or media downloading.
 The actual engine is `yt-dlp`; this project adds a stable layer for describing
