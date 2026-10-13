@@ -183,4 +183,7 @@ PYTHONPATH=src python -m yt_demand_dl resume-ap10k data/ap10k-youtube \
 ```
 
 
-CI runs the offline unittest suite and a network-free AP-10K planning smoke test across supported Python versions.
+CI runs the offline unittest suite and a network-free AP-10K planning smoke
+test across supported Python versions. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for the development setup and [SECURITY.md](SECURITY.md) for private
+vulnerability reporting.

@@ -1,0 +1,44 @@
+name: Bug report
+description: Report behavior that differs from the documentation.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The exact CLI invocation (or API call) that reproduces the problem.
+      placeholder: "PYTHONPATH=src python -m yt_demand_dl download '...' --limit 1 --dry-run"
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Quote the README section that promises the expected result, when possible.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CLI
+        - Manifest / category input
+        - Download backend (yt-dlp optional extra)
+        - AP-10K planner / verifier
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: "0.1.0 / d91a417"
+    validations:
+      required: true
