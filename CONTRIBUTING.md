@@ -26,7 +26,8 @@ ruff check .
 - Add or update tests for behavior changes. Every offline test must run
   without network access; real-download tests stay behind the
   `YT_DEMAND_DL_RUN_NETWORK=1` opt-in.
-- Update the README when CLI flags or behavior change.
+- Update the README when CLI flags or behavior change, and add an entry
+  under `Unreleased` in `CHANGELOG.md`.
 - Do not commit downloaded media, archives, or manifests (`data/` and
   `downloads/` are ignored on purpose).
 

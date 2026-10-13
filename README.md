@@ -198,4 +198,4 @@ CI runs the offline unittest suite and a network-free AP-10K planning smoke
 test across supported Python versions. See [CONTRIBUTING.md](CONTRIBUTING.md)
 for the development setup, [SECURITY.md](SECURITY.md) for private
 vulnerability reporting, and [docs/releasing.md](docs/releasing.md) for the
-PyPI release process.
+PyPI release process. Release history lives in [CHANGELOG.md](CHANGELOG.md).
