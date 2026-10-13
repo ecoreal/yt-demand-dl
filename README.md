@@ -10,6 +10,17 @@ The actual engine is `yt-dlp`; this project adds a stable layer for describing
 what you want to collect, turning category lists into search jobs, applying
 simple constraints, and organizing outputs.
 
+- **Category-plan generator**: turn AP-10K categories (or your own list) into
+  search jobs with one command, with a network-free `--plan-output` mode for
+  dry runs and CI.
+- **Manifest-driven batches**: describe downloads in JSONL; the planner
+  validates each row (bounded sizes, relative output templates) before any
+  network call.
+- **Resume built in**: `verify-ap10k` audits what is missing and
+  `resume-ap10k` re-queues exactly those categories.
+- **Thin over yt-dlp by design**: extraction, formats, and cookies stay in
+  yt-dlp, so both evolve independently.
+
 Use it only for videos you have the right to download and store, and follow
 YouTube's terms and the source video's license.
 
