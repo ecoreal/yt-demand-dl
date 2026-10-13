@@ -8,6 +8,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `README.zh.md`, a full Chinese translation cross-linked with the English
+  README; a test pins section parity and the cross-links.
 - MIT `LICENSE` file (the package declared MIT in `pyproject.toml` but the
   repository had no license text, so GitHub showed none).
 - `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, an issue form, and a

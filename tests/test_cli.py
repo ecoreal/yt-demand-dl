@@ -233,5 +233,19 @@ class CliTests(unittest.TestCase):
         self.assertEqual(calls[0].options.output_dir, root)
 
 
+class BilingualReadmeTests(unittest.TestCase):
+    def test_readmes_cross_link_and_keep_section_parity(self):
+        root = Path(__file__).resolve().parents[1]
+        en = (root / "README.md").read_text(encoding="utf-8")
+        zh = (root / "README.zh.md").read_text(encoding="utf-8")
+
+        self.assertIn("[中文](README.zh.md)", en)
+        self.assertIn("[English](README.md)", zh)
+
+        en_sections = [line for line in en.splitlines() if line.startswith("## ")]
+        zh_sections = [line for line in zh.splitlines() if line.startswith("## ")]
+        self.assertEqual(len(en_sections), len(zh_sections))
+
+
 if __name__ == "__main__":
     unittest.main()
